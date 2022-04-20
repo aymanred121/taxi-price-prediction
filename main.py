@@ -1,65 +1,54 @@
-import numpy as np
-import seaborn as sns
-import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error
-from sklearn.linear_model import *
-from sklearn import linear_model
-from sklearn import metrics
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn import preprocessing
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import *
-from  scipy import stats
-from sklearn.model_selection import cross_val_score
-
-def Remove_Outlier_Indices(df):
-    Q1 = df.quantile(0.25)
-    Q3 = df.quantile(0.75)
-    IQR = Q3 - Q1
-    trueList = ~((df < (Q1 - 1.5 * IQR)) |(df > (Q3 + 1.5 * IQR)))
-    return trueList
+from functions import *
 
 
-def corssValidation(X_train, X_test, y_train, y_test,model, degree=1):
-    modelfeatures = PolynomialFeatures(degree)
-    # transforms the existing features to higher degree features.
-    X_train_poly_model_1 = modelfeatures.fit_transform(X_train)
-    # fit the transformed features to Linear Regression
-    poly_model1 = model
-    scores = cross_val_score(poly_model1, X_train_poly_model_1, y_train, scoring='neg_mean_squared_error', cv=9)
-    model_1_score = abs(scores.mean())
-    poly_model1.fit(X_train_poly_model_1, y_train)
-    print("model cross validation score is "+ str(model_1_score))
-    # predicting on test data-set
-    prediction = poly_model1.predict(modelfeatures.fit_transform(X_test))
-    print('model Test Mean Square Error', metrics.mean_squared_error(y_test, prediction))
+weatheDf = pd.read_csv("taxi/weather.csv")
+lst_location = weatheDf.location.unique()
+weatheDf.location = weatheDf.location.map(weatheDf.groupby('location')['rain'].mean())
+weatheDf.time_stamp = pd.to_datetime(weatheDf.time_stamp,unit='s')
+dict_loc = dict(zip(weatheDf.location.unique(),lst_location))
 
+weatheDf['month'] = weatheDf.time_stamp.dt.month
+weatheDf.time_stamp = weatheDf.time_stamp.dt.hour
+weatheDf =  weatheDf.rename(
+    columns ={
+        'time_stamp':'hour'
+    }
+    )
 
-def model_trial(X_train, X_test, y_train, y_test, model, degree=30):
-    poly_features = PolynomialFeatures(degree=degree)
-    X_train_poly = poly_features.fit_transform(X_train)
+scaler = MinMaxScaler()
+scaler.fit(weatheDf.drop('rain',axis=1))
+wweatheDf = pd.DataFrame(scaler.transform(weatheDf.drop('rain',axis=1)), columns= weatheDf.drop('rain',axis=1).columns)
+weatheDf1 =weatheDf.copy()
+weatheDf.dropna(axis=0,inplace=True)
+X = weatheDf.drop('rain',axis=1)
+y = weatheDf.rain
+x_pred = weatheDf1.drop('rain',axis=1)
 
-    model.fit(X_train_poly, y_train)
+model = linear_model.LinearRegression()
+poly_features = PolynomialFeatures(degree=3)
+X_train_poly = poly_features.fit_transform(X)
+x_pred_poly = poly_features.fit_transform(x_pred)
+model.fit(X_train_poly, y)
+y_train_predicted = model.predict(x_pred_poly)
 
-    y_train_predicted = model.predict(X_train_poly)
-    prediction = model.predict(poly_features.fit_transform(X_test))
-    train_err = metrics.mean_squared_error(y_train, y_train_predicted)
-    test_err = metrics.mean_squared_error(y_test, prediction)
-    print('Train subset (MSE) for degree {}: '.format(degree), train_err)
-    print('Test subset (MSE) for degree {}: '.format(degree), test_err)
+weatheDf1.rain = y_train_predicted
 
-weatherData = pd.read_csv("taxi/weather.csv")
+weatherData =weatheDf1
+weatherData.location= weatherData.location.replace(dict_loc)
 taxiRidersData = pd.read_csv("taxi/taxi-rides.csv")
 taxiRidersData.time_stamp = pd.to_datetime(taxiRidersData.time_stamp,unit="ms")
+taxiRidersData['month']=(taxiRidersData.time_stamp.dt.month)
 taxiRidersData.time_stamp = taxiRidersData.time_stamp.dt.hour
-weatherData.time_stamp = pd.to_datetime(weatherData.time_stamp,unit='s')
-weatherData.time_stamp = weatherData.time_stamp.dt.hour
-weatherData.dropna()
+taxiRidersData.rename(
+    columns ={
+        'time_stamp':'hour'
+    }
+)
+
 taxiRidersData.dropna(axis=0, inplace=True)
-avgWeather = weatherData.groupby("location").mean().reset_index(drop=False)
-avgWeather.drop(['time_stamp'],axis=1,inplace=True)
+avgWeather = weatherData.groupby(["location"]).mean().reset_index(drop=False)
+print(avgWeather.columns)
+avgWeather.drop(['hour'],axis=1,inplace=True)
 sourceWeather = avgWeather.rename(
     columns={
         'location': 'source',
@@ -99,49 +88,38 @@ dataX = data.drop(['price'],axis=1)
 cor_matrix = dataX.corr().abs()
 upper_tri = cor_matrix.where(np.triu(np.ones(cor_matrix.shape),k=1).astype(bool))
 to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > 0.92)]
+print(to_drop)
 data = data.drop(to_drop, axis=1)
 
-cols = ['distance',
-'source_clouds',
-'source_temp',
-'source_pressure',
-'source_rain',
-'destination_clouds',
-'destination_temp',
-'destination_pressure',
-'destination_rain'
-]
-data = data[Remove_Outlier_Indices(data).all(1)]
+dataTrain,dataTest = split_stratified_into_train_val_test(data,stratify_colname='price', frac_train=0.60, frac_test=0.20)
 
-data.name = data.name.map(data.groupby('name')['price'].mean())
-data.source = data.source.map(data.groupby('source')['price'].mean())
-data.destination = data.destination.map(data.groupby('destination')['price'].mean())
-data.cab_type = data.cab_type.map(data.groupby('cab_type')['price'].mean())
+dataTrain = cap_data(dataTrain)
+dataTest = cap_data(dataTest)
 
-X = data.drop(['price'], axis=1)
-Y = data['price']
+dataTrain = mean_encoding(dataTrain)
+dataTest = mean_encoding(dataTest)
 
-
-corr = data.corr()
+corr = dataTest.corr()
 plt.figure(figsize=(16, 5))
-dataplot = sns.heatmap(data.corr(), annot=True, linewidths=1)
-top_feature = corr.index[abs(corr['price']) > 0.1]
-top_feature = top_feature.drop("price")
+dataplot = sns.heatmap(corr, annot=True, linewidths=1)
+top_feature = corr.index[abs(corr['price']) > 0.2]
 print(top_feature)
-X = X[top_feature]
+dataTest = dataTest[top_feature]
+dataTrain = dataTrain[top_feature]
 
-X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.20, shuffle=True, random_state=10)
+X_train = dataTrain.drop(['price'],axis=1)
+X_test = dataTest.drop(['price'],axis=1)
+y_train = dataTrain.price
+y_test = dataTest.price
 
 scaler = MinMaxScaler()
 scaler.fit(X_train)
-X_train = pd.DataFrame(scaler.transform(X_train), columns=X.columns)
-X_test = pd.DataFrame(scaler.transform(X_test), columns=X.columns)
+X_train = pd.DataFrame(scaler.transform(X_train), columns= dataTrain.drop(['price'],axis=1).columns)
+X_test = pd.DataFrame(scaler.transform(X_test), columns= dataTrain.drop(['price'],axis=1).columns)
 
+deg = 8
+model_trial(X_train, X_test, y_train, y_test, linear_model.LinearRegression(),deg)
+model_trial(X_train, X_test, y_train, y_test, linear_model.Ridge(), deg)
+corssValidation(X_train, X_test, y_train, y_test, linear_model.LinearRegression(),deg)
+corssValidation(X_train, X_test, y_train, y_test,linear_model.Ridge(),deg)
 
-model_trial(X_train, X_test, y_train, y_test, linear_model.LinearRegression(),degree=12)
-model_trial(X_train, X_test, y_train, y_test, linear_model.Ridge(), degree=12)
-
-
-
-corssValidation(X_train, X_test, y_train, y_test, linear_model.LinearRegression(),degree=12)
-corssValidation(X_train, X_test, y_train, y_test,linear_model.Ridge(),degree=12)
