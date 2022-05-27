@@ -1,0 +1,5 @@
+distance,cab_type,time_stamp,destination,source,surge_multiplier,id,product_id,name,RideCategory
+2.14,Lyft,1.54323E+12,South Station,North Station,1,d17c8f8f-5018-4dc1-b86b-0e67849e5f57,lyft_luxsuv,Lux Black XL,expensive
+1.08,Uber,1.54328E+12,North End,North Station,1,4258d0c6-e1e5-45fb-bcee-d2a02aa5e6b0,997acbb5-e102-41e1-b155-9df7de0a73f2,UberPool,cheap
+0.57,Lyft,1.54363E+12,North Station,Haymarket Square,1,a0a9b20e-d5ed-4eab-b2a5-d6ebd5eb3214,lyft_plus,Lyft XL,cheap
+0.91,Uber,1.54492E+12,Beacon Hill,Haymarket Square,1,0be75a58-949c-47b4-98ed-37de32b4bc5d,8cf7e821-f0d3-49c6-8eba-e679c0ebcf6a,Taxi,unknown
